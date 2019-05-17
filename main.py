@@ -1,9 +1,11 @@
+from __future__ import division
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import scipy
-from scipy import sparse
-from scipy.sparse import *
+# import pandas as pd
+# import matplotlib.pyplot as plt
+# import scipy
+# from scipy import sparse
+# from scipy.sparse import *
 
 class Joint():
     '''这是节点类'''
@@ -99,9 +101,9 @@ def TransMatrix(CosA,SinA):
     return:
         ET: 局部坐标系下的单元坐标转换矩阵
     '''
-    ET = np.zeros((6,6))
-    ET[0,:2] = [CosA, SinA]
-    ET[1,:2] = [-SinA, CosA]
+    ET = np.array([[0.0]*6]*6)
+    ET[0,:2] = [CosA, -SinA]
+    ET[1,:2] = [SinA, CosA]
     if(ET[0,:].shape[0] > 2):
         ET[2,2] = 1
     if (ET[0,:].shape[0] > 3):
@@ -157,7 +159,7 @@ def SetMatBand(Kcol,Elem):
 
 def varBandSolv(Disp, Kcol, GLoad, row1):
     NCol = len(Kcol[0,:])
-    Diag = np.array([Kcol[i,i] for i in range(NCol)])
+    # Diag = np.array([Kcol[i,i] for i in range(NCol)])
 
    #  for j in range(1,NCol):
         # for k in range(row1[j],j-1):
@@ -169,17 +171,14 @@ def varBandSolv(Disp, Kcol, GLoad, row1):
        # # print( Kcol[row1[j]:j-1,j])
         # s = np.dot(Diag[row1[j]-1:j-1],Kcol[row1[j]-1:j-1,j]**2)
         # Diag[j] = Diag[j] - s
+#     for i in range(len(Kcol)):
+#         print(Kcol[i])
+
     temp = Kcol.T - np.diag(Kcol.diagonal())
-    # print(Kcol.T)
-    # print(Kcol.diagonal())
-    # print(temp)
     Kcol = Kcol + temp
-    # print(Kcol)
-    # Kcol += Kcol.T - np.diag(Kcol.diagonal())
-    # print(Kcol[:10,:10])
-    # print(Kcol)
     # Disp = GLoad
     Disp = np.linalg.solve(Kcol,GLoad)
+    print(Disp)
     # for j in range(1,NCol):
     #     Disp[j] -= np.dot(Kcol[row1[j]-1:j-1,j],Disp[row1[j]-1:j-1])
 
@@ -203,7 +202,7 @@ def solveDisp(Disp,Elem,Joint,JLoad,ELoad):
     '''
     NGlbDOF = len(Disp)
     GLoad = np.zeros((NGlbDOF))
-    Kcol = np.array([[0]*NGlbDOF]*NGlbDOF)
+    Kcol = np.array([[0.0]*NGlbDOF]*NGlbDOF)
     (rowIdx, KVal, indPtr, row1) = SetMatBand(Kcol, Elem)
     # 得到整体荷载向量
     GLoad = GLoadVec(GLoad, Elem, JLoad, ELoad, Joint)
@@ -211,7 +210,6 @@ def solveDisp(Disp,Elem,Joint,JLoad,ELoad):
     Kcol = GStifMat(Kcol, Elem)
     # 得到整体刚度矩阵和位移向量
     (Kcol, Disp) = varBandSolv(Disp, Kcol, GLoad, row1)
-    print(Kcol)
     return (Kcol,Disp)
 
 def GStifMat(Kcol, Elem):
@@ -257,17 +255,16 @@ def GLoadVec(GLoad,Elem,JLoad,ELoad,Joint):
     '''
     NJLoad = len(JLoad)
     for i in range(NJLoad):
-        JGDOF = Joint[JLoad[i].jointNo].gdof[JLoad[i].lodDof]
-        GLoad[JGDOF] = GLoad[JGDOF]+JLoad[i].lodVal
+        JGDOF = Joint[JLoad[i].jointNo-1].gdof[JLoad[i].lodDof-1]
+        GLoad[JGDOF-1] = GLoad[JGDOF-1]+JLoad[i].lodVal
     NELoad = len(ELoad)
     for i in range(NELoad):
-        ET = TransMatrix(Elem[ELoad[i].elemNo].cos,Elem[ELoad[i].elemNo].sin)
-        F0 = EFixendF(ELoad[i].idx,ELoad[i].pos,ELoad[i].lodVal,Elem[ELoad[i].elemNo])
-        F0 = np.matmul(np.transpose(ET),F0)
-        ELocVec = np.array(Elem[ELoad[i].elemNo].glbdof)
+        ET = TransMatrix(Elem[ELoad[i].elemNo-1].cos,Elem[ELoad[i].elemNo-1].sin)
+        F0 = EFixendF(ELoad[i].idx,ELoad[i].pos,ELoad[i].lodVal,Elem[ELoad[i].elemNo-1])
+        F0 = np.matmul(F0,np.transpose(ET))
+        ELocVec = np.array(Elem[ELoad[i].elemNo-1].glbdof)
         nonZeroIdx = np.where(ELocVec>0)[0]
         GLoad[ELocVec[nonZeroIdx]-1] += F0[nonZeroIdx]
-
     return GLoad
 
 def EStifMat(ELen,EI,EA):
@@ -278,8 +275,8 @@ def EStifMat(ELen,EI,EA):
         EA: 单元的抗拉刚度
     return:
         EK: 单元刚度矩阵
-    '''
-    EK = np.array([[0]*6]*6)
+    # '''
+    EK = np.array([[0.0]*6]*6)
     EAL = EA/ELen
     EIL1 = EI/ELen
     EIL2 = EI/(ELen**2)
@@ -290,7 +287,7 @@ def EStifMat(ELen,EI,EA):
     EK[3,:] = [-EAL,0,0,EAL,0,0]
     EK[4,:] = [0,-12*EIL3,-6*EIL2,0,12*EIL3,-6*EIL2]
     EK[5,:] = [0,6*EIL2,2*EIL1,0,-6*EIL2,4*EIL1]
-
+    # print(EK)
     return EK
 
 def EFixendF(Indx,a,q,Elem):
@@ -299,6 +296,7 @@ def EFixendF(Indx,a,q,Elem):
         Indx: 力的方向
         a: 力的位置
         q: 力的大小
+        Elem: 一个单元
     return:
         F0: 单元力
     '''
@@ -314,7 +312,7 @@ def EFixendF(Indx,a,q,Elem):
     elif(Indx == 2):
         F0[1] = -q*(l-(a*l))**2/(l**2)*(1+2*(a*l)/l)
         F0[2] = -q*(a*l)*(l-(a*l))**2/(l**2)
-        F0[4] = -q*(a*l)**2/(l**2)*(1-2*(l-(a*l))/l)
+        F0[4] = -q*(a*l)**2/(l**2)*(1+2*(l-(a*l))/l)
         F0[5] = q*(a*l)**2*(l-(a*l))/(l**2)
     elif(Indx == 3):
         F0[0] = EA*q/l
@@ -340,11 +338,10 @@ def ElemDisp(Disp,Elem):
     '''
     ET = TransMatrix(Elem.cos,Elem.sin)
     EDisp = np.zeros((6))
+    EDisp = np.matmul(EDisp,np.transpose(ET))
     for i in range(len(Elem.glbdof)):
         if(Elem.glbdof[i] > 0):
             EDisp[i] += Disp[Elem.glbdof[i]-1]
-    EDisp = np.matmul(np.transpose(ET),EDisp)
-
     return EDisp
 
 def ElemForce(ie, Disp,Elem,ELoad):
@@ -358,19 +355,26 @@ def ElemForce(ie, Disp,Elem,ELoad):
         EForce: 单元荷载向量
     '''
     ET = TransMatrix(Elem.cos,Elem.sin)
+    # print(ET)
     EK = EStifMat(Elem.len,Elem.ei,Elem.ea)
     EDisp = ElemDisp(Disp,Elem)
     # 总的单元荷载向量
     F = [0]*6
+    # for i in range(len(ELoad)):
+    #     print(ELoad[i].lodVal)
     for i in range(len(ELoad)):
-        if(ELoad[i].elemNo == ie):
+        if(ELoad[i].elemNo-1 == ie):
             # 由一个单元荷载引起的单元荷载向量
             F0 = EFixendF(ELoad[i].idx,ELoad[i].pos,ELoad[i].lodVal,Elem)
+            # print(ELoad[i].idx,ELoad[i].pos,ELoad[i].lodVal)
+            # print(Elem.glbdof)
+            # print(F0)
             F = F + F0
-
-    EForce = np.matmul(EK,np.matmul(ET,EDisp))-F
+            # print(F)
+    # print(EDisp)
+    EForce = np.matmul(np.matmul(EDisp,ET),EK)-F
     EForce = EForce*np.array([-1,1,1,1,1,1])
-
+    # print(EForce)
     return EForce
 
 
@@ -407,14 +411,13 @@ def InputData():
         if(NJLoad > 0):
             for j in range(NJLoad):
                 [jointN,lodDof,lodVal] = f.readline().split(',')
-                jointLod = JointLoad(int(jointN),int(lodDof),int(float(lodVal)))
+                jointLod = JointLoad(int(jointN),int(lodDof),float(lodVal))
                 JLoad.append(jointLod)
         if(NELoad > 0):
             for j in range(NELoad):
                 [elemNo, Indx, Pos, LodVal] = f.readline().strip('\n').split(',')
-                elemLoad = ElemLoad(int(elemNo),int(Indx),float(Pos),int(float(LodVal)))
+                elemLoad = ElemLoad(int(elemNo),int(Indx),float(Pos),float(LodVal))
                 ELoad.append(elemLoad)
-
     return (NElem, NJoint,NGlbDOF,NJLoad,NELoad,jointList,Elem,JLoad,ELoad)
 
 
@@ -423,23 +426,28 @@ def OutputResult(NElem,Disp,Elem,ELoad):
         f.write('10 0\n')
         EDisp = [0]*6
         for i in range(NElem):
-           EDisp = ElemDisp(Disp, Elem[i])
-           for j in range(len(ELoad)):
-               if((ELoad[j].idx == 3) and (ELoad[j].elemNo == i+1)):
-                   if(ELoad[j].pos == 0):
-                       EDisp[0] = EDisp[0] + ELoad[j].lodVal
-                   else:
-                        EDisp[3] = EDisp[3] + ELoad[j].lodVal
-               if((ELoad[j].idx==4) and (ELoad[j].elemNo==i+1)):
-                   if(ELoad[j].pos == 0):
-                       EDisp[1] = EDisp[1] + ELoad[j].lodVal
-                   else:
-                       EDisp[4] = EDisp[4] + ELoad[j].lodVal
-           for k in range(6):
-               if(k < 5):
+            EDispLoad = [0]*6
+            EDisp = ElemDisp(Disp, Elem[i])
+            ET = np.zeros((6,6))
+            ET = TransMatrix(Elem[i].cos,Elem[i].sin)
+            # print(ET)
+            for j in range(len(ELoad)):
+                if((ELoad[j].idx == 3) and (ELoad[j].elemNo == i+1)):
+                    if(ELoad[j].pos == 0):
+                        EDispLoad[0] += ELoad[j].lodVal
+                    else:
+                        EDispLoad[3] += ELoad[j].lodVal
+                if((ELoad[j].idx==4) and (ELoad[j].elemNo==i+1)):
+                    if(ELoad[j].pos == 0):
+                        EDispLoad[4] += ELoad[j].lodVal
+            EDispLoad = np.matmul(np.transpose(ET),EDispLoad)
+            EDisp += EDispLoad
+            # print(EDisp)
+            for k in range(6):
+                if(k < 5):
                    f.write(str(EDisp[k]))
                    f.write(' ')
-               else:
+                else:
                    f.write(str(EDisp[k]))
                    f.write('\n')
         for i in range(NElem):
@@ -457,8 +465,7 @@ def main():
     (NElem, NJoint,NGlbDOF,NJLoad,NELoad,
             jointList,Elem,JLoad,ELoad) = InputData()
     Elem = SetElemProp(Elem, jointList)
-
-    Disp = [0]*NGlbDOF
+    Disp = [0.0]*NGlbDOF
     (Kcol,Disp) = solveDisp(Disp,Elem,jointList,JLoad,ELoad)
     OutputResult(NElem,Disp,Elem,ELoad)
     return

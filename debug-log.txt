@@ -1,0 +1,15 @@
+Elem.cos Elem.sin 正确
+
+EK 单元刚度矩阵 正确
+
+Gload 正确
+
+ET 通过转置（fortran 的第一个索引时列） 正确
+
+EFixend 通过改变单元的索引(从0开始) 正确
+
+GLoad 通过改变下标 正确
+
+EDisp 错误 由于Disp错误
+
+Disp 错误
