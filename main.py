@@ -169,9 +169,15 @@ def varBandSolv(Disp, Kcol, GLoad, row1):
        # # print( Kcol[row1[j]:j-1,j])
         # s = np.dot(Diag[row1[j]-1:j-1],Kcol[row1[j]-1:j-1,j]**2)
         # Diag[j] = Diag[j] - s
-    Kcol += Kcol.T - np.diag(Kcol.diagonal())
+    temp = Kcol.T - np.diag(Kcol.diagonal())
+    # print(Kcol.T)
+    # print(Kcol.diagonal())
+    # print(temp)
+    Kcol = Kcol + temp
+    # print(Kcol)
+    # Kcol += Kcol.T - np.diag(Kcol.diagonal())
     # print(Kcol[:10,:10])
-
+    # print(Kcol)
     # Disp = GLoad
     Disp = np.linalg.solve(Kcol,GLoad)
     # for j in range(1,NCol):
@@ -235,6 +241,7 @@ def GStifMat(Kcol, Elem):
                 # 将单元刚度矩阵集成到整体刚度矩阵上
                 if((ELocVec[k] > 0) and (ELocVec[k] <= JGDOF)):
                     Kcol[ELocVec[k]-1,JGDOF-1] += EK[k,j]
+    # print(Kcol)
     return Kcol
 
 def GLoadVec(GLoad,Elem,JLoad,ELoad,Joint):
