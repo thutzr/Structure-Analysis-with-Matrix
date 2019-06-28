@@ -157,6 +157,43 @@ def SetMatBand(Kcol,Elem):
 #        Kcol[i].row = [0]*Kcol[0,:].length
     return (rowIdx, KVal, indPtr,row1)
 
+def SetMatBand2(Elem, Kcol, add, NGlbDOF):
+    NElem = lem(Elem)
+    row1 = len(Kcol)
+    count = 1
+    for ie in range(NElem):
+        if (add[ie] == 0):
+            ELocVec = Elem[ie].GlbDOF
+            minDOF = 1000
+            for j in range(len(ELocVec)):
+                if (ELocVec[i] > 0) and (ELocVec[i] < minDOF):
+                    minDOF = ELocVec[i]
+            for j in range(len(ELocVec)):
+                if(ELocVec[i] > 0):
+                    row1[ELocVec] = min([row1[ELocVec],minDOF])
+        else:
+            ELocVec[:3] = Elem[ie].GlbDOF[:3]
+            ELocVec[3:] = [NGlbDOF + 3 * count -2,NGlbDOF + 3 * count - 1, NGlbDOF + 3 * count]
+            minDOF = 1000
+            for j in range(len(ELocVec)):
+                if (ELocVec[i] > 0) and (ELocVec[i] < minDOF):
+                    minDOF = ELocVec[i]
+            for j in range(len(ELocVec)):
+                if(ELocVec[i] > 0):
+                    row1[ELocVec] = min([row1[ELocVec],minDOF])
+            ELocVec[:3] = [NGlbDOF + 3 * count -2,NGlbDOF + 3 * count - 1, NGlbDOF + 3 * count]
+            ELocVec[3:] = Elem[ie].GlbDOF[3:]
+            minDOF = 1000
+            for j in range(len(ELocVec)):
+                if (ELocVec[i] > 0) and (ELocVec[i] < minDOF):
+                    minDOF = ELocVec[i]
+            for j in range(len(ELocVec)):
+                if(ELocVec[i] > 0):
+                    row1[ELocVec] = min([row1[ELocVec],minDOF])
+            count += 1
+    return Kcol
+
+
 def varBandSolv(Disp, Kcol, GLoad, row1):
     NCol = len(Kcol[0,:])
     # Diag = np.array([Kcol[i,i] for i in range(NCol)])
@@ -177,6 +214,7 @@ def varBandSolv(Disp, Kcol, GLoad, row1):
     temp = Kcol.T - np.diag(Kcol.diagonal())
     Kcol = Kcol + temp
     # Disp = GLoad
+    print(GLoad)
     Disp = np.linalg.solve(Kcol,GLoad)
     print(Disp)
     # for j in range(1,NCol):
@@ -187,30 +225,19 @@ def varBandSolv(Disp, Kcol, GLoad, row1):
     #     Disp[row1[j]-1:j-1] = Disp[row1[j]-1:j-1] - Disp[j]*Kcol[row1[j]-1:j-1,j]
     return (Kcol, Disp)
 
+def VarBandSolv2(Kcol):
+    NCol = len(Kcol)
+    Diag = np.array([Kcol[i,i] for i in range(NCol)])
+    for j in range(1,NCol):
+        for k in range(row1[j],j-1):
+            row_1 = max([row1[j],row1[k]])
+            s = np.dot(Kcol[row_1-1:k-1,k],Kcol[row_1-1:k-1,j])
+            Kcol[k,j] = Kcol[k,j]-s
+        Kcol[row1[j]-1:j-1,j] = Kcol[row1[j]-1:j-1,j]/Diag[row1[j]-1:j-1]
+        s = np.dot(Diag[row1[j]-1:j-1],Kcol[row1[j]-1:j-1,j]**2)
+        Diag[j] = Diag[j] - s
+    return (Kcol, Diag)
 
-def solveDisp(Disp,Elem,Joint,JLoad,ELoad):
-    '''
-    para::
-        Disp: 整体位移向量
-        Elem: 包含所有单元的数组
-        Joint: 包含所有节点的数组
-        JLoad: 节点荷载向量
-        ELoad: 单元荷载向量
-    return:
-        Kcol: 整体刚度矩阵
-        Disp: 整体位移向量
-    '''
-    NGlbDOF = len(Disp)
-    GLoad = np.zeros((NGlbDOF))
-    Kcol = np.array([[0.0]*NGlbDOF]*NGlbDOF)
-    (rowIdx, KVal, indPtr, row1) = SetMatBand(Kcol, Elem)
-    # 得到整体荷载向量
-    GLoad = GLoadVec(GLoad, Elem, JLoad, ELoad, Joint)
-    # 得到整体刚度矩阵
-    Kcol = GStifMat(Kcol, Elem)
-    # 得到整体刚度矩阵和位移向量
-    (Kcol, Disp) = varBandSolv(Disp, Kcol, GLoad, row1)
-    return (Kcol,Disp)
 
 def GStifMat(Kcol, Elem):
     '''
@@ -241,6 +268,51 @@ def GStifMat(Kcol, Elem):
                     Kcol[ELocVec[k]-1,JGDOF-1] += EK[k,j]
     # print(Kcol)
     return Kcol
+
+def GStifMat2(Kcol, omega, Elem, add, NGlbDOF):
+    NElem = len(Elem)
+    M = np.zeros((6,6))
+    count = 1
+    for ie in range(NElem):
+        if (add[ie] == 0):
+            # 计算局部坐标系下的单元刚度矩阵
+            EK = EStifMat(Elem[i].len,Elem[i].ei,Elem[i].ea)
+            # 计算单元坐标转换矩阵
+            ET = TransMatrix(Elem[i].cos,Elem[i].sin)
+            # 整体坐标系下的单元刚度矩阵
+            EK = np.matmul(np.transpose(ET),np.matmul(EK,ET))
+            # 单元定位向量
+            ELocVec = Elem[i].glbdof
+            for j in range(6):
+                JGDOF = ELocVec[j]
+                if(JGDOF == 0):
+                    continue
+                # 当节点的位移编码不为0时
+                for k in range(len(ELocVec)):
+                    # 将单元刚度矩阵集成到整体刚度矩阵上
+                    if((ELocVec[k] > 0) and (ELocVec[k] <= JGDOF)):
+                        Kcol[ELocVec[k]-1,JGDOF-1] += EK[k,j]
+        else:
+            # 计算局部坐标系下的单元刚度矩阵
+            EK = EStifMat(Elem[i].len,Elem[i].ei,Elem[i].ea)
+            # 计算单元坐标转换矩阵
+            ET = TransMatrix(Elem[i].cos,Elem[i].sin)
+            # 整体坐标系下的单元刚度矩阵
+            EK = np.matmul(np.transpose(ET),np.matmul(EK,ET))
+            # 单元定位向量
+            ELocVec = Elem[i].glbdof
+            for j in range(6):
+                JGDOF = ELocVec[j]
+                if(JGDOF == 0):
+                    continue
+                # 当节点的位移编码不为0时
+                for k in range(len(ELocVec)):
+                    # 将单元刚度矩阵集成到整体刚度矩阵上
+                    if((ELocVec[k] > 0) and (ELocVec[k] <= JGDOF)):
+                        Kcol[ELocVec[k]-1,JGDOF-1] += EK[k,j]
+
+    return Kcol
+
 
 def GLoadVec(GLoad,Elem,JLoad,ELoad,Joint):
     '''
@@ -288,6 +360,35 @@ def EStifMat(ELen,EI,EA):
     EK[4,:] = [0,-12*EIL3,-6*EIL2,0,12*EIL3,-6*EIL2]
     EK[5,:] = [0,6*EIL2,2*EIL1,0,-6*EIL2,4*EIL1]
     # print(EK)
+    return EK
+
+def EStifMatDiff(Elem, EI, EA, mass omega):
+    nu = omega*Elem*sqrt(mass / EA))
+    lambda = Elem * (omega**2 * mass/EI)**(1/4)
+    B1 = (np.sin(nu)*np.co(nu)- nu)/(np.sin(nu))**2
+    B2 = (np.sin(nu) - nu*np.cos(nu))/(np.sin(nu))**2
+    esh = (1-np.exp(-2*lambda))/2
+    ech = (1+np.exp(-2*lambda))/2
+    phi = np.exp(-lambda) - ech*np.cos(lambda)
+    phipie = ech*np.sin(lambda) - esh*np.cos(lambda)
+    T = lambda**3/phi*(np.sin(lambda)*ech + np.cos(lambda)*esh)
+    R = lambda**3/phi*(esh+np.exp(-lambda)*np.sin(lambda))
+    Q = lambda**2/phi*(esh*np.sin(lambda))
+    H = lambda**2/phi*(ech-np.exp(-lambda)*np.cos(lambda))
+    S = lambda/phi*(np.sin(lambda)*ech-np.cos(lambda)*esh)
+    C = lambd/phi*(esh-np.exp(-lambda)*np.sin(lambda))
+    S = (1/lambda-phipie/phi)*S+2*Q/lambda
+    C = (1/lambda-phipie/phi)*C+H/lambda
+    Q = (2/lambda - phipie/phi)*Q+T/lambda
+    H = (2/lambda -phipie/phi)*H+R/lambda
+    T = (3/lambda - phipie/phi)*T+lambda**3/phi*(2/ech*np.cos(lambda))
+    R = (3/lambda - phipie/phi)*R + lambda**3/phi*(ech+np.exp(-lamdba)*np.cos(lambda))
+    EK[0,:] = [B1*EA/Elem,0,0,-B2*EA/Elem, 0,0]
+    EK[1,:] = [0,T*EI/(Elem**3),Q*EI/(Elem**2), 0,-R*EI/(Elem**3), H*EI/(Elem**2)]
+    EK[2,:] = [0,Q*EI/(Elem**2),S*EI/Elem,0,-H*EI/(Elem**2),C*EI/Elem]
+    EK[3,:] = [-B2*EA/Elem,0,0,B1*EA/Elem,0,0]
+    EK[4,:] = [0,-R*EI/(Elem**3),-H*EI/(Elem**2),0, T*EI/(Elem**3),-Q*EI/(Elem**2)]
+    EK[5,:] = [0,H*EI/(Elem**2),C*EI/Elem,0,-Q*EI/(Elem**2),S*EI/Elem]
     return EK
 
 def EFixendF(Indx,a,q,Elem):
@@ -376,6 +477,102 @@ def ElemForce(ie, Disp,Elem,ELoad):
     EForce = EForce*np.array([-1,1,1,1,1,1])
     # print(EForce)
     return EForce
+
+
+def calculate_J0(freq,Elem):
+    Ja = 0
+    Jb = 0
+    for ie in range(len(Elem)):
+        nu = freq*Elem[ie].len*np.sqrt(Elem[ie].ea)
+        Ja += nu//pi
+        lambda = Elem[ie].len*(freq**2*Elem[ie].mass/Elem[ie].ei)**(1/4)
+        sg = (-1)**(1-np.cosh(lambda)*np.cos(lambda))
+        i = lambda//pi
+        Jb += i-(1-(-1)**i*sg)/2
+    J0 = Ja + Jb
+    return J0
+
+def calculate_JK(freq,Kcol, Elem):
+    (rowIdx, KVal, indPtr,row1) = SetMatBand(Kcol, Elem)
+    Kcol = GStifMat(Kcol, Elem, freq)
+    diag = np.zeros((len(Kcol)))
+    (Kcol, diag) = VarBandSolv2(diag,Kcol)
+    JK = sum(np.where(diag<0,1,0))
+    return JK
+
+def find_freq(k,NGlbDOF,Elem,Toler):
+    freq_1 = 1
+    freq_2 = 10
+    GKcol = np.zeros((NGlbDOF))
+    while(True):
+        J0_1 = calculate_J0(freq_2, Elem)
+        JK = calculate_JK(freq_2,GKcol,Elem)
+        J_1 = J0_1 + JK
+        if(J_1 < k):
+            break;
+        freq_1 /= 2
+    if(freq_1 < 1):
+        freq_2 = freq_1*2
+    else:
+        while(True):
+            J0_2 = calculate_J0(freq_2,Elem)
+            JK = calculate_JK(freq_2,GKcol,Elem)
+            J_u = J02 + JK
+            if(J_u >= k):
+                break
+            freq_2 *= 2
+    while(True):
+        freq_m = (freq_1+ freq_2)/2
+        J0 = calculate_J0(freq_m,Elem)
+        JK = calculate_JK(freq_m,GKcol,Elem)
+        J_m = J0+JK
+        if(J_m >= k):
+            freq_2 = freq_m
+            J_u = J_m
+            J0_2 = J0
+        else:
+            freq_1 = freq_m
+            J_1 = J_m
+            J01 = J0
+        if((freq_2 - freq_1)<=Toler*(1+freq_2)):
+            break
+    J0_1 = calculate_J0(freq_1,Elem)
+    J0_2 = calculate_J0(freq_2, Elem)
+    JK_1 = calculate_JK(freq_1,GKcol,Elem)
+    JK_2 = calculate_JK(freq_2,GKcol,Elem)
+    n_1 = J0_1 + JK_1
+    n_2 = J0_2 + JK_2
+    return (freq_1, freq_2, n_1, n_2)
+
+
+def addInternal(Elem, freq_1,freq_u):
+    l = Elem.len
+    nu = freq_1*l*np.sqrt(Elem.mass/Elem/ea)
+    Jal = nu//np.pi
+    lambda = l*(freq_1**2*Elem.mass/Elem.EI)**(1/4)
+    sg = (-1)**(1-np.cosh(lambda)*np.cos(lambda))
+    i = lambda//np.pi
+    Jbl = i-(1-(-1)**i*sg)/2
+    nu = freq_u*i*np.sqrt(Elem.mass/Elem.ea)
+    Jau = nu//numpy.pi
+    lambda = l*(freq_u**2*Elem.mass/Elem.ea)**(1/4)
+    sg = (-1)**(1-np.cosh(lambda)*np.cos(lambda))
+    i = lambda//np.pi
+    Jbu = i-(1-(-1)**i*sg)/2
+    if(Jal==Jau) and (Jbl==Jau):
+        add = 0
+        inttype = 0
+        return (add, inttype)
+    if(Jal<Jau):
+        inttype = 1
+    if(Jbl<Jbu):
+        inttype = 2
+    add = 1/2
+    return (add, inttype)
+
+
+
+
 
 
 def InputData():
